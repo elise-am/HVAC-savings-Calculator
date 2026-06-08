@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HVAC Preventive Maintenance Savings Calculator</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">HVAC Preventive Maintenance ROI</p>
+          <h1>Cost calculator for multi-site HVAC savings</h1>
+          <p class="hero-copy">
+            Estimate how preventive maintenance changes annual cost, 20-year TCO, downtime, and replacement timing versus a reactive run-to-failure approach.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button class="ghost-button" id="copySummary" type="button">Copy summary</button>
+          <button class="primary-button" id="printReport" type="button">Print report</button>
+        </div>
+      </section>
+
+      <section class="layout">
+        <aside class="panel input-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Client Inputs</p>
+              <h2>Scenario builder</h2>
+            </div>
+            <button class="link-button" id="resetDefaults" type="button">Reset</button>
+          </div>
+
+          <div class="form-grid">
+            <label>
+              Building vertical
+              <select id="buildingType"></select>
+            </label>
+
+            <label>
+              State
+              <select id="state"></select>
+            </label>
+
+            <label>
+              County / equivalent
+              <select id="county"></select>
+            </label>
+
+            <label>
+              Number of locations
+              <input id="locations" type="number" min="1" step="1" value="1" />
+            </label>
+
+            <label>
+              Avg. sqft / location
+              <input id="sqft" type="number" min="1000" step="500" value="10000" />
+            </label>
+
+            <label>
+              Equipment age
+              <input id="age" type="number" min="0" max="30" step="1" value="5" />
+            </label>
+
+            <label>
+              RTUs / location
+              <input id="rtus" type="number" min="1" step="1" value="2" />
+            </label>
+
+            <label>
+              Reactive repairs / location / yr
+              <input id="reactiveCost" type="number" min="0" step="500" value="10000" />
+            </label>
+
+            <label>
+              PM program
+              <select id="pmTier">
+                <option value="basic">Basic — 2 visits / yr</option>
+                <option value="standard" selected>Standard — quarterly</option>
+                <option value="enhanced">Enhanced — monthly</option>
+              </select>
+            </label>
+          </div>
+
+          <details class="advanced">
+            <summary>Advanced assumptions</summary>
+            <div class="form-grid">
+              <label>
+                PM cost / location / yr
+                <input id="pmCost" type="number" min="0" step="500" value="8000" />
+              </label>
+
+              <label>
+                Reactive repair reduction
+                <input id="repairReduction" type="number" min="0" max="90" step="1" value="50" />
+              </label>
+
+              <label>
+                Breakdowns / location / yr
+                <input id="breakdowns" type="number" min="0" step="0.5" value="5" />
+              </label>
+
+              <label>
+                Downtime hours / breakdown
+                <input id="downtimeHours" type="number" min="0" step="0.5" value="4" />
+              </label>
+
+              <label>
+                Downtime cost / hour
+                <input id="downtimeCost" type="number" min="0" step="50" value="500" />
+              </label>
+
+              <label>
+                Replacement cost / RTU
+                <input id="replacementCost" type="number" min="0" step="1000" value="23000" />
+              </label>
+
+              <label>
+                HVAC share of utility bill
+                <input id="hvacShare" type="number" min="5" max="90" step="1" value="45" />
+              </label>
+
+              <label>
+                Known utility cost / location / yr
+                <input id="knownUtility" type="number" min="0" step="1000" placeholder="Optional override" />
+              </label>
+
+              <label>
+                Analysis horizon
+                <input id="horizon" type="number" min="1" max="30" step="1" value="20" />
+              </label>
+
+              <label>
+                Discount rate
+                <input id="discountRate" type="number" min="0" max="20" step="0.25" value="8" />
+              </label>
+
+              <label>
+                Climate / HVAC load
+                <select id="climateLoad">
+                  <option value="auto" selected>Auto from county/state</option>
+                  <option value="low">Low</option>
+                  <option value="typical">Typical</option>
+                  <option value="high">High</option>
+                </select>
+              </label>
+            </div>
+          </details>
+        </aside>
+
+        <section class="dashboard">
+          <div class="kpi-grid">
+            <article class="kpi-card accent">
+              <span>20-year NPV savings</span>
+              <strong id="npvSavings">$0</strong>
+              <small id="roi">ROI: —</small>
+            </article>
+            <article class="kpi-card">
+              <span>Annual operating impact</span>
+              <strong id="annualSavings">$0</strong>
+              <small id="annualSavingsRange">Range: —</small>
+            </article>
+            <article class="kpi-card">
+              <span>Payback period</span>
+              <strong id="payback">—</strong>
+              <small id="pmCostLabel">PM cost: —</small>
+            </article>
+            <article class="kpi-card">
+              <span>Avoided breakdowns</span>
+              <strong id="avoidedBreakdowns">0</strong>
+              <small id="downtimeAvoided">Downtime avoided: —</small>
+            </article>
+          </div>
+
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Cost Comparison</p>
+                  <h2>TCO over selected horizon</h2>
+                </div>
+                <span class="pill" id="horizonPill">20 years</span>
+              </div>
+              <div class="bar-chart" id="tcoChart"></div>
+              <div class="chart-legend">
+                <span><i class="legend-dot no-pm"></i>No PM</span>
+                <span><i class="legend-dot with-pm"></i>With PM</span>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Savings Drivers</p>
+                  <h2>Annual impact breakdown</h2>
+                </div>
+              </div>
+              <div class="breakdown-list" id="breakdownList"></div>
+            </article>
+          </div>
+
+          <article class="panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Lifecycle</p>
+                <h2>Replacement timeline</h2>
+              </div>
+              <span class="pill" id="lifePill">RTU life: —</span>
+            </div>
+            <div class="timeline" id="timeline"></div>
+          </article>
+
+          <div class="two-column">
+            <article class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Model Assumptions</p>
+                  <h2>Current scenario</h2>
+                </div>
+              </div>
+              <dl class="assumption-list" id="assumptions"></dl>
+            </article>
+
+            <article class="panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Evidence Base</p>
+                  <h2>Source-backed defaults</h2>
+                </div>
+              </div>
+              <ul class="source-list">
+                <li><a href="https://www.energy.gov/sites/default/files/2020/04/f74/omguide_complete_w-eo-disclaimer.pdf" target="_blank" rel="noreferrer">DOE/PNNL O&M Guide</a>: PM saves 12–18% versus reactive maintenance.</li>
+                <li><a href="https://www.osti.gov/servlets/purl/1893981" target="_blank" rel="noreferrer">PNNL Climate Zone Guide</a>: county-level BA and IECC 2021 climate zones.</li>
+                <li><a href="https://www.pnnl.gov/projects/om-best-practices/re-tuning-buildings" target="_blank" rel="noreferrer">PNNL Re-tuning</a>: O&M/re-tuning commonly saves 5–25% energy.</li>
+                <li><a href="https://buildings.lbl.gov/publications/empirical-analysis-prevalence-hvac" target="_blank" rel="noreferrer">LBNL HVAC Fault Study</a>: 40% of AHUs show faults on a given day.</li>
+                <li><a href="https://portfoliomanager.energystar.gov/pdf/reference/US%20National%20Median%20Table.pdf" target="_blank" rel="noreferrer">ENERGY STAR EUI Table</a>: building-type energy intensity defaults.</li>
+                <li><a href="https://www.eia.gov/electricity/monthly/epm_table_grapher.php?t=epmt_5_6_a" target="_blank" rel="noreferrer">EIA Table 5.6.A</a>: commercial electricity prices by state.</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">Copied summary</div>
+    <script src="climate-zones.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
