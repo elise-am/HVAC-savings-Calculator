@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HVAC PM Savings Calculator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F8F7F4;--surface:#FFFFFF;--border:#E2E0D8;--border2:#C8C6BC;
+  --txt:#1A1916;--txt2:#5C5A54;--txt3:#9C9A94;
+  --green:#0F6E56;--green-bg:#E1F5EE;--green-txt:#085041;
+  --amber:#633806;--amber-bg:#FAEEDA;--amber-border:#FAC775;
+  --red:#D85A30;--blue:#378ADD;
+  --radius:10px;--radius-sm:6px;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --col-left:440px;
+}
+html,body{height:100%;overflow:hidden}
+body{
+  font-family:'DM Sans',sans-serif;
+  background:var(--bg);
+  color:var(--txt);
+  font-size:14px;
+  line-height:1.6;
+  min-height:100vh;
+  margin:0;
+  padding:0;
+}
+
+/* ── Full-width layout ── */
+.app{display:flex;flex-direction:column;min-height:100vh}
+
+/* ── Header — full width ── */
+.header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 24px;gap:16px;flex-wrap:wrap;
+  background:var(--surface);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:100;
+}
+.header-brand h1{font-size:26px;font-weight:600;letter-spacing:-.3px;margin-bottom:1px}
+.header-brand p{font-size:12px;color:var(--txt2)}
+.header-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.header-actions{display:flex;gap:8px;align-items:center;margin-left:auto}
+
+/* ── View toggle ── */
+.view-toggle{display:flex;align-items:center;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius-sm);overflow:hidden;height:34px}
+.vt-sep{width:1px;background:var(--border2);height:100%;flex-shrink:0}
+.vt-btn{padding:0 14px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:var(--txt2);background:transparent;border:none;cursor:pointer;height:100%;white-space:nowrap;transition:background .15s,color .15s}
+.vt-btn.active{background:var(--txt);color:#fff}
+.vt-btn:hover:not(.active){background:var(--border)}
+.tco-years{display:none;align-items:center;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius-sm);overflow:hidden;height:34px}
+.tco-years.show{display:flex}
+.yr-btn{padding:0 11px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;color:var(--txt2);background:transparent;border:none;border-right:1px solid var(--border2);cursor:pointer;height:100%;transition:background .15s,color .15s}
+.yr-btn:last-child{border-right:none}
+.yr-btn.active{background:var(--txt);color:#fff}
+.yr-btn:hover:not(.active){background:var(--border)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:0 12px;height:34px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:var(--surface);color:var(--txt);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;text-decoration:none;transition:background .15s;white-space:nowrap}
+.btn:hover{background:var(--bg)}
+
+/* ── Config bar ── */
+.config-bar{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--txt3);padding:7px 24px;background:var(--surface);border-bottom:1px solid var(--border)}
+.cdot{width:6px;height:6px;border-radius:50%;background:var(--txt3);flex-shrink:0}
+.cdot.live{background:#1D9E75}.cdot.err{background:#D85A30}
+
+/* ── Warning ── */
+.warn{background:var(--amber-bg);border-bottom:1px solid var(--amber-border);padding:9px 24px;font-size:12px;color:var(--amber);display:none;line-height:1.5}
+.warn.on{display:block}
+.warn strong{font-weight:600;margin-right:4px}
+
+/* ── Main split layout ── */
+.split{
+  display:block;
+  flex:1;
+}
+
+/* ── Left panel — inputs ── */
+.panel-left{
+  position:fixed;
+  top:62px;
+  left:0;
+  width:var(--col-left);
+  height:calc(100vh - 62px);
+  overflow-y:auto;
+  background:var(--bg);
+  z-index:10;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+}
+.panel-left::-webkit-scrollbar{display:none}
+.panel-left-inner{padding:20px 20px 40px}
+
+/* ── Right panel — outputs ── */
+.panel-right{
+  margin-left:var(--col-left);
+  height:calc(100vh - 62px);
+  overflow-y:auto;
+  background:var(--bg);
+  padding:20px 24px 60px;
+}
+
+/* ── Section labels ── */
+.section-label{font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--txt3);margin-bottom:12px}
+.group-label{font-size:10px;color:var(--txt3);font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin:14px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border)}
+.group-label:first-child{margin-top:0}
+
+/* ── Input fields ── */
+.field{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.field:last-child{margin-bottom:0}
+.field label{font-size:12px;color:var(--txt2);min-width:140px;flex-shrink:0;line-height:1.3}
+.field .unit{font-size:11px;color:var(--txt3);min-width:32px;flex-shrink:0}
+.field input[type=number]{flex:1;font-family:'DM Mono',monospace;font-size:12px;font-weight:500;padding:5px 8px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);color:var(--txt);-moz-appearance:textfield}
+.field input[type=number]::-webkit-outer-spin-button,.field input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+.field input[type=number]:focus{outline:none;border-color:var(--txt)}
+.field input[type=number]::placeholder{color:var(--txt3)}
+.field select{flex:1;min-width:0;font-family:'DM Sans',sans-serif;font-size:12px;padding:5px 7px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:var(--surface);color:var(--txt);cursor:pointer}
+.field select:focus{outline:none;border-color:var(--txt)}
+.field input[type=range]{flex:1;min-width:0;accent-color:var(--txt);cursor:pointer}
+.field .val{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;min-width:68px;text-align:right;color:var(--txt);white-space:nowrap}
+.tag{font-size:9px;padding:2px 6px;border-radius:20px;font-weight:500;white-space:nowrap;flex-shrink:0}
+.tag-auto{background:var(--green-bg);color:var(--green)}
+.tag-assumed{background:var(--amber-bg);color:var(--amber)}
+
+/* ── Hint ── */
+.hint{background:var(--bg);border-radius:var(--radius-sm);padding:10px 12px;font-size:11px;color:var(--txt2);line-height:1.6;margin-top:12px}
+.hint strong{color:var(--txt);display:block;margin-bottom:2px;font-size:12px}
+
+/* ── TCO badge ── */
+.tco-badge{display:none;align-items:center;gap:6px;font-size:11px;font-weight:500;color:var(--green);background:var(--green-bg);border:1px solid #9FE1CB;border-radius:20px;padding:3px 10px;margin-bottom:12px}
+.tco-badge.show{display:inline-flex}
+
+/* ── KPI grid — full width of right panel ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-bottom:16px}
+@media(max-width:1100px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow)}
+.kpi .kl{font-size:10px;color:var(--txt3);margin-bottom:4px;min-height:28px;display:flex;align-items:flex-end;line-height:1.3}
+.kpi .kn{font-size:19px;font-weight:600;font-family:'DM Mono',monospace;letter-spacing:-.5px;color:var(--txt)}
+.kpi .ks{font-size:10px;color:var(--txt3);margin-top:3px;min-height:13px}
+.kpi.green{background:var(--green-bg);border-color:#9FE1CB}
+.kpi.green .kn{color:var(--green-txt)}
+.kpi.green .ks{color:var(--green)}
+
+/* ── Output cards ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);margin-bottom:12px}
+
+/* ── Two-col output grid ── */
+.out-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+@media(max-width:900px){.out-grid{grid-template-columns:1fr}}
+
+/* ── Breakdown rows ── */
+.bsec{margin-bottom:11px}
+.bsec:last-child{margin-bottom:0}
+.bsec-lbl{font-size:10px;color:var(--txt3);margin-bottom:7px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+.brow{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:12px}
+.brow:last-child{margin-bottom:0}
+.brow .dot{width:7px;height:7px;border-radius:2px;flex-shrink:0}
+.brow .bl{color:var(--txt2);flex:1}
+.brow .ba{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;color:var(--txt)}
+.brow.total .bl{color:var(--txt);font-weight:500}
+.brow.saving .ba{color:var(--green-txt)}
+.divider{border:none;border-top:1px solid var(--border);margin:9px 0}
+
+/* ── Scenarios ── */
+.sc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.sc{border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;background:var(--surface)}
+.sc .scl{font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:7px}
+.sc.base{background:var(--green-bg);border-color:#9FE1CB}
+.sc.base .scl{color:var(--green)}
+.sc .scn{font-size:16px;font-weight:600;font-family:'DM Mono',monospace;color:var(--green-txt)}
+.sc .scs{font-size:10px;color:var(--txt3);margin-top:2px}
+.sc .scn2{font-size:13px;font-weight:600;font-family:'DM Mono',monospace;color:var(--green-txt);margin-top:7px}
+
+/* ── Replacement timeline ── */
+.tl-row{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:11px}
+.tl-name{font-family:'DM Mono',monospace;min-width:52px;font-size:10px;font-weight:500}
+.tl-bar-bg{flex:1;height:18px;background:var(--bg);border-radius:3px;position:relative;overflow:visible}
+.tl-seg{position:absolute;top:0;height:100%;border-radius:3px}
+.tl-marker{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--red)}
+.tl-mlbl{position:absolute;top:-17px;font-size:9px;color:var(--red);transform:translateX(-50%);white-space:nowrap;font-weight:500}
+
+/* ── Legend ── */
+.leg{display:flex;gap:12px;font-size:11px;color:var(--txt2);margin-bottom:8px;flex-wrap:wrap}
+.leg span{display:flex;align-items:center;gap:4px}
+.sq{width:8px;height:8px;border-radius:2px;display:inline-block}
+
+/* ── Source bar ── */
+.source-bar{margin-top:10px;font-size:10px;color:var(--txt3)}
+.source-bar a{color:var(--green);text-decoration:none}
+.source-bar a:hover{text-decoration:underline}
+
+/* ── Footer ── */
+.footer{padding:14px 24px;font-size:11px;color:var(--txt3);text-align:center;border-top:1px solid var(--border);background:var(--surface)}
+
+/* ── Metric rows ── */
+.metric-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
+.metric-row:last-child{border-bottom:none}
+.metric-label{font-size:12px;color:var(--txt2)}
+.metric-value{font-family:'DM Mono',monospace;font-size:13px;font-weight:500;color:var(--txt)}
+.metric-value.green{color:var(--green-txt)}
+/* ── Big stat ── */
+.big-stat{text-align:center;padding:8px 4px}
+.big-stat .bs-val{font-family:'DM Mono',monospace;font-size:26px;font-weight:600;color:var(--green-txt);letter-spacing:-.5px}
+.big-stat .bs-lbl{font-size:10px;color:var(--txt3);margin-top:3px;font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.big-stat .bs-sub{font-size:11px;color:var(--txt2);margin-top:2px}
+/* ── Calculate button ── */
+.btn-calc{display:block;width:fit-content;padding:0 20px;height:44px;margin:16px auto 0;border-radius:var(--radius-sm);border:none;background:#1A1916;color:#fff;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;letter-spacing:.01em;transition:background .15s,opacity .15s}
+.btn-calc:hover{background:#000}
+.btn-calc:active{opacity:.85}
+
+/* ══ PRINT ══ */
+@media print{
+  @page{margin:14mm 12mm;size:A4 landscape}
+  .panel-left{position:static;height:auto;overflow:visible}
+  .split{display:block}
+  .panel-left,.panel-right{border:none;padding:0}
+  body{background:#fff!important;color:#1A1916!important;font-size:10px!important}
+  .no-print{display:none!important}
+  .header{position:static;border:none;padding:0 0 12px}
+  .config-bar,.hint,.source-bar{display:none!important}
+  .card,.kpi,.sc{box-shadow:none!important;border:1px solid #C8C6BC!important;break-inside:avoid}
+  .kpi.green{background:#E1F5EE!important;border-color:#9FE1CB!important}
+  .kpi.green .kn{color:#085041!important}
+  .kpi.green .ks{color:#0F6E56!important}
+  .kpi .kl,.kpi .ks{color:#9C9A94!important}
+  .kpi .kn{color:#1A1916!important}
+  .field label{color:#5C5A54!important}
+  .field .val,.field input,.field select{color:#1A1916!important;border-color:#C8C6BC!important;background:#fff!important}
+  .brow .bl{color:#5C5A54!important}
+  .brow .ba{color:#1A1916!important}
+  .brow.saving .ba{color:#085041!important}
+  .warn{background:#FAEEDA!important;color:#633806!important;border-color:#FAC775!important}
+  .sc{background:#fff!important}
+  .sc.base{background:#E1F5EE!important;border-color:#9FE1CB!important}
+  .sc.base .scl{color:#0F6E56!important}
+  .sc .scn,.sc .scn2{color:#085041!important}
+  .tco-badge{background:#E1F5EE!important;color:#0F6E56!important;border-color:#9FE1CB!important}
+  .section-label,.group-label,.bsec-lbl{color:#9C9A94!important}
+  .tag-auto{background:#E1F5EE!important;color:#0F6E56!important}
+  .tag-assumed{background:#FAEEDA!important;color:#633806!important}
+  .leg{color:#5C5A54!important}
+  canvas{max-width:100%!important}
+  .tl-bar-bg{background:#F0EEE8!important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══════════════════════
+     HEADER
+══════════════════════ -->
+<div class="header">
+  <div class="header-brand" style="position:absolute;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none">
+    <h1>HVAC Cost Savings Calculator</h1>
+
+  </div>
+  <div class="header-right no-print">
+    <div class="view-toggle" role="group">
+      <button class="vt-btn active" id="vt-annual" onclick="setView('annual')">Annual view</button>
+      <div class="vt-sep"></div>
+      <button class="vt-btn" id="vt-tco" onclick="setView('tco')">TCO view</button>
+    </div>
+    <div class="tco-years" id="tcoYears" role="group">
+      <button class="yr-btn" data-yr="5"  onclick="setTCOYear(5)">5 yr</button>
+      <button class="yr-btn" data-yr="10" onclick="setTCOYear(10)">10 yr</button>
+      <button class="yr-btn" data-yr="15" onclick="setTCOYear(15)">15 yr</button>
+      <button class="yr-btn active" data-yr="20" onclick="setTCOYear(20)">20 yr</button>
+    </div>
+  </div>
+  <div class="header-actions no-print">
+    <button class="btn" onclick="resetInputs()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.41"/></svg>
+      Reset
+    </button>
+    <button class="btn" onclick="window.print()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      Print / PDF
+    </button>
+  </div>
+</div>
+
+
+
+<!-- ══════════════════════
+     SPLIT LAYOUT
+══════════════════════ -->
+<div class="split">
+
+  <!-- ════════════════════
+       LEFT — ALL INPUTS
+  ════════════════════ -->
+  <div class="panel-left">
+    <div class="panel-left-inner">
+
+      <div class="card">
+        <p class="group-label">Building</p>
+        <div class="field">
+          <label>Building vertical</label>
+          <select id="vert">
+            <option value="" disabled selected>Select a vertical</option>
+            <option value="gym">Fitness / gym</option>
+            <option value="office">Office</option>
+            <option value="restaurant">Restaurant</option>
+            <option value="healthcare">Healthcare</option>
+            <option value="hotel">Hotel</option>
+            <option value="warehouse">Warehouse</option>
+            <option value="retail">Retail</option>
+            <option value="medical">Medical clinic</option>
+            <option value="bank">Bank</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Avg sq ft / location</label>
+          <input type="number" id="sqft" min="1000" max="999999" step="500" placeholder="e.g. 30000">
+          <span class="unit">sqft</span>
+        </div>
+        <div class="field">
+          <label>Number of locations</label>
+          <input type="number" id="locs" min="1" max="9999" step="1" placeholder="e.g. 10">
+          <span class="unit">sites</span>
+        </div>
+        <div class="field">
+          <label>State</label>
+          <select id="state" onchange="onStateChange()">
+            <option value="">Select state</option>
+            <option>Alabama</option><option>Alaska</option><option>Arizona</option>
+            <option>Arkansas</option><option>California</option><option>Colorado</option>
+            <option>Connecticut</option><option>Delaware</option><option>Florida</option>
+            <option>Georgia</option><option>Hawaii</option><option>Idaho</option>
+            <option>Illinois</option><option>Indiana</option><option>Iowa</option>
+            <option>Kansas</option><option>Kentucky</option><option>Louisiana</option>
+            <option>Maine</option><option>Maryland</option><option>Massachusetts</option>
+            <option>Michigan</option><option>Minnesota</option><option>Mississippi</option>
+            <option>Missouri</option><option>Montana</option><option>Nebraska</option>
+            <option>Nevada</option><option>New Hampshire</option><option>New Jersey</option>
+            <option>New Mexico</option><option>New York</option><option>North Carolina</option>
+            <option>North Dakota</option><option>Ohio</option><option>Oklahoma</option>
+            <option>Oregon</option><option>Pennsylvania</option><option>Rhode Island</option>
+            <option>South Carolina</option><option>South Dakota</option><option>Tennessee</option>
+            <option>Texas</option><option>Utah</option><option>Vermont</option>
+            <option>Virginia</option><option>Washington</option><option>Washington DC</option>
+            <option>West Virginia</option><option>Wisconsin</option><option>Wyoming</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Climate zone</label>
+          <select id="climate">
+            <option value="" disabled selected>Select a climate zone</option>
+            <option value="hot_humid">Hot-Humid</option>
+            <option value="mixed_humid">Mixed-Humid</option>
+            <option value="hot_dry">Hot-Dry / Mixed-Dry</option>
+            <option value="mixed_dry">Mixed-Dry</option>
+            <option value="marine">Marine</option>
+            <option value="cold">Cold</option>
+            <option value="cold_very_cold">Cold / Very Cold</option>
+            <option value="very_cold">Very Cold</option>
+            <option value="subarctic">Subarctic</option>
+          </select>
+          <span class="tag tag-auto" id="climateTag" style="display:none">auto</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="group-label">Equipment</p>
+        <div class="field">
+          <label>System type</label>
+          <select id="sys">
+            <option value="rtu" selected>Rooftop units (RTU)</option>
+            <option value="split">Split systems</option>
+            <option value="vrf">VRF / VRV</option>
+            <option value="chiller">Chiller + AHU</option>
+            <option value="ptac">PTAC / PTHP</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Equipment age</label>
+          <input type="range" id="age" min="1" max="25" step="1" value="7">
+          <span class="val" id="age-v">7 yr</span>
+        </div>
+        <div class="field">
+          <label>Number of units / location</label>
+          <input type="number" id="numRTU" placeholder="Auto-calculated" min="1" max="999" step="1">
+          <span class="unit">units</span>
+        </div>
+        <div class="field">
+          <label>Replacement cost / unit</label>
+          <input type="number" id="replCost" placeholder="Auto-estimated" min="1000" max="999999" step="1000">
+          <span class="unit">$</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="group-label">PM program</p>
+        <div class="field">
+          <label>PM tier</label>
+          <select id="tier">
+            <option value="basic">Basic — 2 visits / yr</option>
+            <option value="standard" selected>Standard — 4 visits / yr</option>
+            <option value="enhanced">Enhanced — monthly</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <p class="group-label">Current costs without PM</p>
+        <div class="field">
+          <label>Annual repair spend</label>
+          <select id="currentRepair">
+            <option value="" selected>Select Estimated Spend</option>
+            <option value="low">Low (&lt;$5k/year)</option>
+            <option value="medium">Medium ($5k–$15k/year)</option>
+            <option value="high">High ($15k–$30k/year)</option>
+            <option value="very_high">Very High ($30k+/year)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Monthly energy bill</label>
+          <input type="number" id="currentEnergy" placeholder="e.g. 5000" min="0" step="100">
+          <span class="unit">$/mo</span>
+        </div>
+        <div style="display:none">
+          <input type="number" id="kwh" step="0.01" min="0.01" max="1" placeholder="Auto from state">
+          <span id="kwhTag"></span>
+        </div>
+      </div>
+
+      <button class="btn-calc" id="calcBtn">Calculate Savings</button>
+
+    </div>
+  </div>
+
+  <!-- ════════════════════
+       RIGHT — ALL OUTPUTS
+  ════════════════════ -->
+  <div class="panel-right">
+
+    <!-- ── Annual view ── -->
+    <div id="view-annual">
+
+    <!-- Total Cost Saved -->
+    <div class="card">
+      <p class="section-label">Total Cost Saved — Energy + Repairs</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:8px 0">
+        <div class="big-stat">
+          <p class="bs-val" id="o-totalpct">—</p>
+          <p class="bs-lbl">Savings %</p>
+          <p class="bs-sub">vs. no-PM total</p>
+        </div>
+        <div class="big-stat">
+          <p class="bs-val" id="o-totalsite">—</p>
+          <p class="bs-lbl">Per site / yr</p>
+          <p class="bs-sub">energy + repair savings</p>
+        </div>
+        <div class="big-stat">
+          <p class="bs-val" id="o-totalfleet">—</p>
+          <p class="bs-lbl">Fleet total / yr</p>
+          <p class="bs-sub" id="o-totalfleet-sub">across all sites</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Energy Savings + Equipment Life -->
+    <div class="out-grid">
+      <div class="card">
+        <p class="section-label">Energy Savings</p>
+        <div class="metric-row">
+          <span class="metric-label">Savings %</span>
+          <span class="metric-value green" id="o-epct">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Savings / site / yr</span>
+          <span class="metric-value green" id="o-esite">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Fleet savings / yr</span>
+          <span class="metric-value" id="o-efleet">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">CO₂ reduction / site / yr</span>
+          <span class="metric-value green" id="o-co2">—</span>
+        </div>
+      </div>
+      <div class="card">
+        <p class="section-label">Equipment Life</p>
+        <div class="metric-row">
+          <span class="metric-label">Without PM</span>
+          <span class="metric-value" id="o-life-react">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">With PM</span>
+          <span class="metric-value green" id="o-life-pm">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Life extension</span>
+          <span class="metric-value green" id="o-life-ext">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Replacement Timeline -->
+    <div class="card">
+      <p class="section-label">Replacement Timeline — 20-year horizon</p>
+      <div class="leg">
+        <span><span class="sq" style="background:#888780"></span>No PM</span>
+        <span><span class="sq" style="background:#1D9E75"></span>With PM</span>
+      </div>
+      <div class="tl-row"><span class="tl-name" style="color:var(--txt3)">No PM</span><div class="tl-bar-bg" id="tl-noPM"></div></div>
+      <div class="tl-row"><span class="tl-name" style="color:var(--green)">With PM</span><div class="tl-bar-bg" id="tl-PM"></div></div>
+      <p style="font-size:9px;color:var(--txt3);margin-top:4px"></p>
+    </div>
+
+    <!-- Repair Reduction + Reduced Downtime -->
+    <div class="out-grid">
+      <div class="card">
+        <p class="section-label">Repair Reduction</p>
+        <div class="metric-row">
+          <span class="metric-label">Reduction %</span>
+          <span class="metric-value green" id="o-rpct">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Without PM / site / yr</span>
+          <span class="metric-value" id="o-react-repair">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">With PM / site / yr</span>
+          <span class="metric-value" id="o-pm-repair">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Saved / site / yr</span>
+          <span class="metric-value green" id="o-repair-save">—</span>
+        </div>
+      </div>
+      <div class="card">
+        <p class="section-label">Reduced Downtime</p>
+        <div class="metric-row">
+          <span class="metric-label">Hours avoided / site / yr</span>
+          <span class="metric-value green" id="o-dthrs">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Hours avoided fleet-wide / yr</span>
+          <span class="metric-value green" id="o-dtfleet">—</span>
+        </div>
+      </div>
+    </div>
+
+    </div><!-- /view-annual -->
+
+    <!-- ── TCO view ── -->
+    <div id="view-tco" style="display:none">
+
+    <!-- TCO Summary KPIs -->
+    <div class="card">
+      <p class="section-label" id="tco-title">Total Cost of Ownership — 20-year horizon / site</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:8px 0">
+        <div class="big-stat">
+          <p class="bs-val" id="o-tco-nopm">—</p>
+          <p class="bs-lbl">Without PM</p>
+          <p class="bs-sub">total cost / site</p>
+        </div>
+        <div class="big-stat">
+          <p class="bs-val" id="o-tco-pm">—</p>
+          <p class="bs-lbl">With PM</p>
+          <p class="bs-sub">total cost / site</p>
+        </div>
+        <div class="big-stat">
+          <p class="bs-val" id="o-tco-save">—</p>
+          <p class="bs-lbl">Net Savings / site</p>
+          <p class="bs-sub" id="o-tco-save-sub">over 20 years</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Fleet TCO -->
+    <div class="out-grid">
+      <div class="card">
+        <p class="section-label">Fleet TCO</p>
+        <div class="metric-row">
+          <span class="metric-label">Without PM — fleet total</span>
+          <span class="metric-value" id="o-tco-fleet-nopm">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">With PM — fleet total</span>
+          <span class="metric-value" id="o-tco-fleet-pm">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Fleet savings</span>
+          <span class="metric-value green" id="o-tco-fleet-save">—</span>
+        </div>
+      </div>
+      <div class="card">
+        <p class="section-label">Capital Replacements</p>
+        <div class="metric-row">
+          <span class="metric-label">Without PM — replacements</span>
+          <span class="metric-value" id="o-tco-repl-nopm">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">With PM — replacements</span>
+          <span class="metric-value green" id="o-tco-repl-pm">—</span>
+        </div>
+        <div class="metric-row">
+          <span class="metric-label">Capital deferred</span>
+          <span class="metric-value green" id="o-tco-repl-save">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cumulative Cost Chart -->
+    <div class="card">
+      <p class="section-label" id="tco-chart-title">Cumulative Cost Over Time — Per Site</p>
+      <div class="leg" style="margin-bottom:12px">
+        <span><span class="sq" style="background:#888780"></span>No PM</span>
+        <span><span class="sq" style="background:#1D9E75"></span>With PM</span>
+      </div>
+      <div style="position:relative;height:300px">
+        <canvas id="tcoChart"></canvas>
+      </div>
+      <p style="font-size:9px;color:var(--txt3);margin-top:8px">Includes annual operating costs (repairs, downtime, PM contract) net of energy savings, plus capital replacement events at end of equipment life.</p>
+    </div>
+
+    </div><!-- /view-tco -->
+
+  </div><!-- /panel-right -->
+</div><!-- /split -->
+
+
+
+</div><!-- /app -->
+
+<script>
+/* ═══════════════════════════════════
+   STATE LOOKUP — EIA Commercial 2024
+═══════════════════════════════════ */
+const STATE_DATA={
+  "Alabama":{zone:"mixed_humid",kwh:0.1507,cm:1.10},"Alaska":{zone:"subarctic",kwh:0.2302,cm:1.15},
+  "Arizona":{zone:"hot_dry",kwh:0.1197,cm:1.15},"Arkansas":{zone:"mixed_humid",kwh:0.1150,cm:1.10},
+  "California":{zone:"marine",kwh:0.2818,cm:.90},"Colorado":{zone:"cold",kwh:0.1301,cm:1.10},
+  "Connecticut":{zone:"cold",kwh:0.2378,cm:1.10},"Delaware":{zone:"mixed_humid",kwh:0.1411,cm:1.10},
+  "Florida":{zone:"hot_humid",kwh:0.1174,cm:1.25},"Georgia":{zone:"mixed_humid",kwh:0.1157,cm:1.10},
+  "Hawaii":{zone:"hot_humid",kwh:0.3793,cm:1.25},"Idaho":{zone:"cold",kwh:0.0984,cm:1.10},
+  "Illinois":{zone:"cold",kwh:0.1307,cm:1.10},"Indiana":{zone:"cold",kwh:0.1432,cm:1.10},
+  "Iowa":{zone:"cold",kwh:0.1035,cm:1.10},"Kansas":{zone:"mixed_dry",kwh:0.1166,cm:1.05},
+  "Kentucky":{zone:"mixed_humid",kwh:0.1320,cm:1.10},"Louisiana":{zone:"hot_humid",kwh:0.1293,cm:1.25},
+  "Maine":{zone:"cold_very_cold",kwh:0.2506,cm:1.15},"Maryland":{zone:"mixed_humid",kwh:0.1654,cm:1.10},
+  "Massachusetts":{zone:"cold",kwh:0.2509,cm:1.10},"Michigan":{zone:"cold",kwh:0.1566,cm:1.10},
+  "Minnesota":{zone:"very_cold",kwh:0.1118,cm:1.20},"Mississippi":{zone:"mixed_humid",kwh:0.1473,cm:1.10},
+  "Missouri":{zone:"mixed_humid",kwh:0.1037,cm:1.10},"Montana":{zone:"cold_very_cold",kwh:0.1242,cm:1.15},
+  "Nebraska":{zone:"cold",kwh:0.0889,cm:1.10},"Nevada":{zone:"hot_dry",kwh:0.0906,cm:1.15},
+  "New Hampshire":{zone:"cold",kwh:0.2202,cm:1.10},"New Jersey":{zone:"mixed_humid",kwh:0.1721,cm:1.10},
+  "New Mexico":{zone:"hot_dry",kwh:0.0976,cm:1.15},"New York":{zone:"cold",kwh:0.2221,cm:1.10},
+  "North Carolina":{zone:"mixed_humid",kwh:0.1063,cm:1.10},"North Dakota":{zone:"very_cold",kwh:0.0746,cm:1.20},
+  "Ohio":{zone:"cold",kwh:0.1403,cm:1.10},"Oklahoma":{zone:"mixed_humid",kwh:0.0833,cm:1.10},
+  "Oregon":{zone:"marine",kwh:0.1063,cm:.90},"Pennsylvania":{zone:"cold",kwh:0.1419,cm:1.10},
+  "Rhode Island":{zone:"cold",kwh:0.2344,cm:1.10},"South Carolina":{zone:"mixed_humid",kwh:0.1170,cm:1.10},
+  "South Dakota":{zone:"cold",kwh:0.1170,cm:1.10},"Tennessee":{zone:"mixed_humid",kwh:0.1453,cm:1.10},
+  "Texas":{zone:"mixed_humid",kwh:0.0869,cm:1.10},"Utah":{zone:"cold",kwh:0.1011,cm:1.10},
+  "Vermont":{zone:"very_cold",kwh:0.2086,cm:1.20},"Virginia":{zone:"mixed_humid",kwh:0.1016,cm:1.10},
+  "Washington":{zone:"marine",kwh:0.1218,cm:.90},"Washington DC":{zone:"mixed_humid",kwh:0.2326,cm:1.10},
+  "West Virginia":{zone:"cold",kwh:0.1200,cm:1.10},"Wisconsin":{zone:"cold",kwh:0.1342,cm:1.10},
+  "Wyoming":{zone:"cold_very_cold",kwh:0.0950,cm:1.15}
+};
+
+const SHEETS_EDIT_URL='https://docs.google.com/spreadsheets/d/1N_iH_rU-eQWY7SeNx60wa-l0xpA-u-be1j7bXPlEgIg/edit';
+const SHEETS_JSON_URL='YOUR_GOOGLE_SHEETS_JSON_URL_HERE';
+
+const CFG_DEFAULT={
+  base_failure_rate:1.4,avg_downtime_hrs:5,discount_rate:0.06,
+  pm_tiers:{
+    basic:   {rate_psf:.18,res:.80,base_save:5,pm_factor:4, visits:2, dt_red:.20},
+    standard:{rate_psf:.30,res:.70,base_save:5,pm_factor:7, visits:4, dt_red:.30},
+    enhanced:{rate_psf:.48,res:.60,base_save:5,pm_factor:11,visits:12,dt_red:.40}
+  },
+  sys:{
+    rtu:    {uc:15000,sc:.15,dl:15,ml:12,sp:2500,nopm_life:15,pm_life:20,repair_cpu:4000},
+    split:  {uc:9000, sc:.15,dl:13,ml:10,sp:1500,nopm_life:15,pm_life:20,repair_cpu:2200},
+    vrf:    {uc:35000,sc:.45,dl:18,ml:14,sp:500, nopm_life:18,pm_life:25,repair_cpu:7000},
+    chiller:{uc:120000,sc:1.0,dl:23,ml:18,sp:50000,nopm_life:20,pm_life:30,repair_cpu:13000},
+    ptac:   {uc:1500, sc:.08,dl:10,ml:7, sp:300, nopm_life:15,pm_life:20,repair_cpu:1000}
+  },
+  climate_mult:{hot_humid:1.25,mixed_humid:1.10,hot_dry:1.15,mixed_dry:1.05,marine:.90,cold:1.10,cold_very_cold:1.15,very_cold:1.20,subarctic:1.15},
+  climate_energy_factor:{hot_humid:3,mixed_humid:1,hot_dry:2,mixed_dry:1,marine:0,cold:1,cold_very_cold:2,very_cold:2,subarctic:2},
+  vert:{
+    gym:       {fm:1.30,rm:1.10,dtm:1500,ei:2.20,hvac_share:.60},
+    office:    {fm:1.00,rm:1.00,dtm:800, ei:1.40,hvac_share:.45},
+    restaurant:{fm:1.60,rm:1.20,dtm:2500,ei:2.80,hvac_share:.35},
+    healthcare:{fm:1.20,rm:1.40,dtm:4000,ei:2.50,hvac_share:.60},
+    hotel:     {fm:1.25,rm:1.10,dtm:2000,ei:2.00,hvac_share:.60},
+    warehouse: {fm:0.70,rm:0.80,dtm:400, ei:0.90,hvac_share:.35},
+    retail:    {fm:1.10,rm:1.00,dtm:1000,ei:1.70,hvac_share:.45},
+    medical:   {fm:1.15,rm:1.35,dtm:3500,ei:2.30,hvac_share:.60},
+    bank:      {fm:1.00,rm:1.05,dtm:1200,ei:1.50,hvac_share:.45},
+    other:     {fm:1.00,rm:1.00,dtm:1000,ei:1.60,hvac_share:.45}
+  },
+  age_factors:[{max:5,add:0},{max:10,add:1},{max:15,add:2},{max:99,add:4}],
+  repair_age_mult:[{max:6,m:.5},{max:11,m:1.0},{max:16,m:1.8},{max:99,m:3.0}],
+  scenarios:{
+    conservative:{sm:.65,pm:1.15},
+    base:        {sm:1.00,pm:1.00},
+    optimistic:  {sm:1.35,pm:.90}
+  }
+};
+let CFG=CFG_DEFAULT;
+
+const SYS_LOOKUP={
+  rtu:[
+    {sqft:5000, units:2, uc:15000},{sqft:10000,units:3, uc:20000},
+    {sqft:20000,units:6, uc:30000},{sqft:30000,units:10,uc:30000},
+    {sqft:50000,units:15,uc:40000},{sqft:75000,units:20,uc:50000}
+  ],
+  split:[
+    {sqft:5000, units:4, uc:8000},{sqft:10000,units:6, uc:10000},
+    {sqft:20000,units:10,uc:15000},{sqft:30000,units:15,uc:15000},
+    {sqft:50000,units:20,uc:20000}
+  ],
+  vrf:[
+    {sqft:5000, units:1, uc:30000},{sqft:10000,units:2, uc:40000},
+    {sqft:20000,units:3, uc:60000},{sqft:30000,units:5, uc:75000},
+    {sqft:50000,units:8, uc:90000},{sqft:75000,units:10,uc:120000}
+  ],
+  chiller:[
+    {sqft:20000, units:1,uc:150000},{sqft:30000, units:1,uc:250000},
+    {sqft:50000, units:1,uc:400000},{sqft:75000, units:2,uc:500000},
+    {sqft:100000,units:2,uc:750000}
+  ],
+  ptac:[
+    {sqft:5000, units:10,uc:3000},{sqft:10000,units:20,uc:3500},
+    {sqft:20000,units:40,uc:4000},{sqft:30000,units:60,uc:4500}
+  ]
+};
+function lookupSys(sys,sqft){
+  const tbl=SYS_LOOKUP[sys];
+  if(!tbl)return null;
+  if(sqft<=tbl[0].sqft)return{units:tbl[0].units,uc:tbl[0].uc};
+  const last=tbl[tbl.length-1];
+  if(sqft>=last.sqft){
+    const prev=tbl[tbl.length-2];
+    const r=(sqft-prev.sqft)/(last.sqft-prev.sqft);
+    return{units:Math.max(1,Math.round(prev.units+r*(last.units-prev.units))),uc:Math.round(prev.uc+r*(last.uc-prev.uc))};
+  }
+  for(let i=0;i<tbl.length-1;i++){
+    if(sqft>=tbl[i].sqft&&sqft<=tbl[i+1].sqft){
+      const r=(sqft-tbl[i].sqft)/(tbl[i+1].sqft-tbl[i].sqft);
+      return{units:Math.max(1,Math.round(tbl[i].units+r*(tbl[i+1].units-tbl[i].units))),uc:Math.round(tbl[i].uc+r*(tbl[i+1].uc-tbl[i].uc))};
+    }
+  }
+  return null;
+}
+
+async function loadConfig(){
+  const dot=g('cfgDot'),msg=g('cfgMsg'),lnk=g('sheetsLink');
+  if(lnk) lnk.href=SHEETS_EDIT_URL;
+  if(SHEETS_JSON_URL==='YOUR_GOOGLE_SHEETS_JSON_URL_HERE'){
+    if(dot) dot.className='cdot';
+    if(msg) msg.textContent='Using built-in defaults — connect Google Sheets to enable live config editing.';
+    return;
+  }
+  try{
+    const res=await fetch(SHEETS_JSON_URL);
+    if(!res.ok)throw new Error();
+    CFG=parseSheet(await res.json());
+    if(dot) dot.className='cdot live';
+    if(msg) msg.textContent='Live config from Google Sheets · '+new Date().toLocaleTimeString();
+  }catch(e){
+    if(dot) dot.className='cdot err';
+    if(msg) msg.textContent='Could not reach Google Sheets — using built-in defaults.';
+    CFG=CFG_DEFAULT;
+  }
+}
+
+function parseSheet(raw){
+  try{
+    const rows=raw.values||raw,out=JSON.parse(JSON.stringify(CFG_DEFAULT));
+    rows.forEach(([k,v])=>{
+      if(k==='base_failure_rate') out.base_failure_rate=+v;
+      if(k==='base_repair_cost')  out.base_repair_cost=+v;
+      if(k==='avg_downtime_hrs')  out.avg_downtime_hrs=+v;
+      if(k==='hvac_energy_share') out.hvac_energy_share=+v;
+      if(k==='discount_rate')     out.discount_rate=+v;
+      if(k==='reactive_life_mult')out.reactive_life_mult=+v;
+      if(k==='pm_life_mult')      out.pm_life_mult=+v;
+      Object.keys(out.vert).forEach(vt=>{
+        if(k===vt+'_failure_mult') out.vert[vt].fm=+v;
+        if(k===vt+'_repair_mult')  out.vert[vt].rm=+v;
+        if(k===vt+'_downtime')     out.vert[vt].dtm=+v;
+      });
+    });
+    return out;
+  }catch(e){return CFG_DEFAULT;}
+}
+
+let VIEW='annual',TCO_YR=20,HAS_DATA=false,TCO_CHART=null;
+
+function setView(v){
+  VIEW=v;
+  g('vt-annual').classList.toggle('active',v==='annual');
+  g('vt-tco').classList.toggle('active',v==='tco');
+  g('tcoYears').classList.toggle('show',v==='tco');
+  g('view-annual').style.display=v==='annual'?'':'none';
+  g('view-tco').style.display=v==='tco'?'':'none';
+  if(v==='tco'&&HAS_DATA) updateTCOView(calc(TCO_YR));
+}
+function setTCOYear(y){
+  TCO_YR=y;
+  document.querySelectorAll('.yr-btn').forEach(b=>b.classList.toggle('active',+b.dataset.yr===y));
+  if(VIEW==='tco'&&HAS_DATA) updateTCOView(calc(TCO_YR));
+}
+
+function updateTCOView(r){
+  const yrLabel=r.hor+'-year';
+  const titleEl=g('tco-title');
+  if(titleEl) titleEl.textContent='Total Cost of Ownership — '+yrLabel+' horizon / site';
+  const chartTitle=g('tco-chart-title');
+  if(chartTitle) chartTitle.textContent='Cumulative Cost Over Time — Per Site ('+yrLabel+')';
+  const subEl=g('o-tco-save-sub');
+  if(subEl) subEl.textContent='over '+r.hor+' years';
+
+  g('o-tco-nopm').textContent=fmt(r.reactTCO);
+  g('o-tco-pm').textContent=fmt(r.pmTCO);
+  g('o-tco-save').textContent=fmt(r.tcoSave);
+  g('o-tco-fleet-nopm').textContent=fmt(r.reactTCO*r.locs);
+  g('o-tco-fleet-pm').textContent=fmt(r.pmTCO*r.locs);
+  g('o-tco-fleet-save').textContent=fmt(r.fleetTCO);
+  const replNopm=r.reactReplYrs.length*r.replCost;
+  const replPm=r.pmReplYrs.length*r.replCost;
+  g('o-tco-repl-nopm').textContent=fmt(replNopm)+' ('+r.reactReplYrs.length+'x)';
+  g('o-tco-repl-pm').textContent=fmt(replPm)+' ('+r.pmReplYrs.length+'x)';
+  g('o-tco-repl-save').textContent=fmt(replNopm-replPm);
+
+  const yrs=Array.from({length:r.hor+1},(_,i)=>i);
+  const reactData=yrs.map(y=>{
+    let c=r.reactYr*y;
+    r.reactReplYrs.forEach(ry=>{if(y>=ry)c+=r.replCost;});
+    return Math.round(c/1e3);
+  });
+  const pmData=yrs.map(y=>{
+    let c=r.pmYr*y;
+    r.pmReplYrs.forEach(ry=>{if(y>=ry)c+=r.replCost;});
+    return Math.round(c/1e3);
+  });
+
+  if(TCO_CHART){
+    TCO_CHART.data.labels=yrs;
+    TCO_CHART.data.datasets[0].data=reactData;
+    TCO_CHART.data.datasets[1].data=pmData;
+    TCO_CHART.update('none');
+  } else {
+    TCO_CHART=new Chart(g('tcoChart'),{
+      type:'line',
+      data:{labels:yrs,datasets:[
+        {label:'No PM',data:reactData,borderColor:'#888780',backgroundColor:'rgba(136,135,128,0.07)',fill:true,borderWidth:2,pointRadius:0,borderDash:[5,3]},
+        {label:'With PM',data:pmData,borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,0.07)',fill:true,borderWidth:2,pointRadius:0}
+      ]},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': $'+ctx.parsed.y.toLocaleString()+'k'}}
+        },
+        scales:{
+          x:{title:{display:true,text:'Year',font:{size:10}},ticks:{font:{size:10}}},
+          y:{ticks:{callback:v=>'$'+v+'k',font:{size:10}},title:{display:true,text:'Cumulative Cost (per site)',font:{size:10}}}
+        }
+      }
+    });
+  }
+}
+function onStateChange(){
+  const sd=STATE_DATA[g('state').value];
+  if(!sd){g('climateTag').style.display='none';g('kwhTag').style.display='none';return;}
+  g('climate').value=sd.zone;
+  g('climateTag').style.display='inline-block';
+  if(!g('kwh').value){
+    g('kwh').placeholder='$'+sd.kwh.toFixed(2)+' (auto)';
+    g('kwhTag').style.display='inline-block';
+  }
+}
+
+function g(id){return document.getElementById(id)}
+function nv(id,fb){const el=g(id);const v=el?parseFloat(el.value):NaN;return isNaN(v)?(fb!==undefined?fb:0):v}
+function sv(id){return g(id).value}
+function fmt(v){
+  const a=Math.abs(v),s=v<0?'-':'';
+  if(a>=1e6)return s+'$'+(a/1e6).toFixed(1)+'M';
+  if(a>=1e3)return s+'$'+Math.round(a/1e3).toLocaleString()+'k';
+  return s+'$'+Math.round(a).toLocaleString();
+}
+
+function calc(hor,sm,pm_m){
+  sm=sm||1;pm_m=pm_m||1;
+  const C=CFG,age=nv('age',7),sqft=Math.max(1,nv('sqft',30000)),locs=Math.max(1,nv('locs',10));
+  const vd=C.vert[sv('vert')]||C.vert['other'],sysd=C.sys[sv('sys')],tierd=C.pm_tiers[sv('tier')];
+  const cm=C.climate_mult[sv('climate')]||1.0;
+  const autoSys=lookupSys(sv('sys'),sqft);
+  const units=nv('numRTU',0)>0?nv('numRTU'):(autoSys?autoSys.units:Math.max(1,Math.round(sqft/sysd.sp)));
+  const unitCost=nv('replCost',0)>0?nv('replCost'):(autoSys?autoSys.uc:sysd.uc);
+  const sd=STATE_DATA[sv('state')];
+  const kwhRate=nv('kwh',0)>0?nv('kwh'):(sd?sd.kwh:0.13);
+  const dtCost=vd.dtm;
+  const fr=C.base_failure_rate*Math.pow(age/sysd.ml,2)*vd.fm*cm;
+  const repairMap={low:2500,medium:10000,high:22500,very_high:40000};
+  const clientRepair=repairMap[sv('currentRepair')]||0;
+  const ageM=C.repair_age_mult.find(f=>age<f.max)?.m||3.0;
+  const eRep=clientRepair>0?clientRepair:units*sysd.repair_cpu*ageM;
+  const eDt=fr*C.avg_downtime_hrs*dtCost*sysd.sc*units;
+  const reactYr=eRep+eDt;
+  const pmCon=sqft*tierd.rate_psf*pm_m;
+  const residual=eRep*tierd.res;
+  const pmDt=eDt*(1-tierd.dt_red);
+  const ageFactor=C.age_factors.find(f=>age<f.max)?.add||4;
+  const climateFactor=C.climate_energy_factor[sv('climate')]||0;
+  const energySavePct=(tierd.base_save+ageFactor+tierd.pm_factor+climateFactor)/100;
+  const clientEnergyMonthly=nv('currentEnergy',0);
+  const clientEnergyAnnual=clientEnergyMonthly*12;
+  const hvacShare=vd.hvac_share||.45;
+  const energyBase=clientEnergyMonthly>0?clientEnergyAnnual*hvacShare:sqft*vd.ei*kwhRate;
+  const energySavePerSite=energyBase*energySavePct;
+  const energySaveFleet=locs*energySavePerSite;
+  const pmYr=pmCon+residual+pmDt-energySavePerSite;
+  const saving=(reactYr-pmYr)*sm;
+  const payback=pmCon/Math.max(1,saving);
+  const rl=sysd.nopm_life,pl=sysd.pm_life;
+  const replCost=units*unitCost;
+  let reactReplYrs=[],pmReplYrs=[];
+  for(let y=age;y<=hor+age;y+=rl){const yr=Math.round(y-age);if(yr>0&&yr<=hor)reactReplYrs.push(yr);}
+  for(let y=age;y<=hor+age;y+=pl){const yr=Math.round(y-age);if(yr>0&&yr<=hor)pmReplYrs.push(yr);}
+  let npv=0;
+  for(let y=1;y<=hor;y++)npv+=saving/Math.pow(1+C.discount_rate,y);
+  const rNPV=reactReplYrs.reduce((a,yr)=>a+replCost/Math.pow(1+C.discount_rate,yr),0);
+  const pNPV=pmReplYrs.reduce(  (a,yr)=>a+replCost/Math.pow(1+C.discount_rate,yr),0);
+  npv+=(rNPV-pNPV);
+  const fleetNPV=npv*locs;
+  const reactTCO=reactYr*hor+reactReplYrs.length*replCost;
+  const pmTCO=pmYr*hor+pmReplYrs.length*replCost;
+  const tcoSave=reactTCO-pmTCO,fleetTCO=tcoSave*locs;
+  const roi5=pmCon>0?((saving*5-pmCon*5)/(pmCon*5))*100:0;
+  const failAvoided=fr*units*(1-tierd.res),dtHrsAvoided=failAvoided*C.avg_downtime_hrs;
+  return{eRep,eDt,reactYr,pmCon,residual,pmDt,energySavePerSite,energySavePct,energySaveFleet,
+    pmYr,saving,fleetNPV,payback,roi5,rl,pl,reactTCO,pmTCO,tcoSave,fleetTCO,
+    reactReplYrs,pmReplYrs,replCost,failAvoided,dtHrsAvoided,hor,locs,
+    warn:(sysd.nopm_life-age)<payback&&(sysd.nopm_life-age)<3,rem:sysd.nopm_life-age,age};
+}
+
+let MC=null;
+function updateChart(r){
+  const yrs=Array.from({length:r.hor+1},(_,i)=>i);
+  const react=yrs.map(y=>{let c=r.reactYr*y;r.reactReplYrs.forEach(ry=>{if(y>=ry)c+=r.replCost;});return Math.round(c/1e3);});
+  const pm=yrs.map(y=>{let c=r.pmYr*y;r.pmReplYrs.forEach(ry=>{if(y>=ry)c+=r.replCost;});return Math.round(c/1e3);});
+  if(MC){MC.data.labels=yrs;MC.data.datasets[0].data=react;MC.data.datasets[1].data=pm;MC.update('none');}
+  else MC=new Chart(g('mainChart'),{type:'line',data:{labels:yrs,datasets:[
+    {label:'No PM',data:react,borderColor:'#888780',backgroundColor:'transparent',borderWidth:2,pointRadius:0,borderDash:[5,3]},
+    {label:'With PM',data:pm,borderColor:'#1D9E75',backgroundColor:'transparent',borderWidth:2,pointRadius:0}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+    scales:{x:{title:{display:true,text:'Year',font:{size:10}},ticks:{font:{size:10}}},
+            y:{ticks:{callback:v=>'$'+v+'k',font:{size:10}}}}}});
+}
+
+function updateTimeline(r){
+  const hor=r.hor;
+  function buildBar(el,replYrs,color){
+    el.innerHTML='';
+    const evts=[0,...replYrs,hor].sort((a,b)=>a-b);
+    for(let i=0;i<evts.length-1;i++){
+      const s=evts[i],e=evts[i+1];
+      const seg=document.createElement('div');
+      seg.className='tl-seg';
+      seg.style.left=(s/hor*100)+'%';
+      seg.style.width=((e-s)/hor*100)+'%';
+      seg.style.background=i%2===0?color:color+'88';
+      el.appendChild(seg);
+    }
+    replYrs.forEach(yr=>{
+      const m=document.createElement('div');m.className='tl-marker';m.style.left=(yr/hor*100)+'%';
+      const ml=document.createElement('div');ml.className='tl-mlbl';ml.textContent='Yr '+yr;
+      m.appendChild(ml);el.appendChild(m);
+    });
+  }
+  buildBar(g('tl-noPM'),r.reactReplYrs,'#888780');
+  buildBar(g('tl-PM'),r.pmReplYrs,'#1D9E75');
+}
+
+function resetInputs(){
+  g('vert').selectedIndex=0;
+  g('sqft').value='';
+  g('locs').value='';
+  g('state').selectedIndex=0;
+  g('climate').selectedIndex=0;
+  g('climateTag').style.display='none';
+  g('sys').selectedIndex=0;
+  g('age').value=7;
+  g('numRTU').value='';
+  g('replCost').value='';
+  g('tier').selectedIndex=0;
+  g('currentRepair').selectedIndex=0;
+  g('currentEnergy').value='';
+  g('kwh').value='';
+  g('kwh').placeholder='Auto from state';
+  g('kwhTag').style.display='none';
+  g('age-v').textContent='7 years';
+  clearOutputs();
+}
+
+function updateUI(){
+  g('age-v').textContent=Math.round(nv('age',7))+' years';
+  const _sqftRaw=g('sqft').value,_sysd=CFG.sys[sv('sys')];
+  if(!g('numRTU').value){
+    if(_sqftRaw){const _s=Math.max(1,parseFloat(_sqftRaw)),_a=lookupSys(sv('sys'),_s);g('numRTU').placeholder=(_a?_a.units:Math.max(1,Math.round(_s/_sysd.sp)))+' (auto)';}
+    else g('numRTU').placeholder='Auto-calculated';
+  }
+  if(!g('replCost').value){
+    if(_sqftRaw){const _s=Math.max(1,parseFloat(_sqftRaw)),_a=lookupSys(sv('sys'),_s);g('replCost').placeholder='$'+(_a?_a.uc:_sysd.uc).toLocaleString()+' (auto)';}
+    else g('replCost').placeholder='Auto-estimated';
+  }
+}
+function clearOutputs(){
+  ['o-epct','o-esite','o-efleet','o-co2','o-life-react','o-life-pm','o-life-ext',
+   'o-rpct','o-react-repair','o-pm-repair','o-repair-save',
+   'o-dthrs','o-dtfleet','o-totalpct','o-totalsite','o-totalfleet'].forEach(id=>{const el=g(id);if(el)el.textContent='—';});
+  g('o-totalfleet-sub').textContent='across all sites';
+  const a=g('tl-noPM'),b=g('tl-PM');if(a)a.innerHTML='';if(b)b.innerHTML='';
+  ['o-tco-nopm','o-tco-pm','o-tco-save','o-tco-fleet-nopm','o-tco-fleet-pm','o-tco-fleet-save',
+   'o-tco-repl-nopm','o-tco-repl-pm','o-tco-repl-save'].forEach(id=>{const el=g(id);if(el)el.textContent='—';});
+  if(TCO_CHART){TCO_CHART.destroy();TCO_CHART=null;}
+  HAS_DATA=false;
+}
+function run(){
+  g('age-v').textContent=Math.round(nv('age',7))+' years';
+  const _sqftRaw=g('sqft').value,_sysd=CFG.sys[sv('sys')];
+  if(!g('numRTU').value){
+    if(_sqftRaw){const _s=Math.max(1,parseFloat(_sqftRaw)),_a=lookupSys(sv('sys'),_s);g('numRTU').placeholder=(_a?_a.units:Math.max(1,Math.round(_s/_sysd.sp)))+' (auto)';}
+    else g('numRTU').placeholder='Auto-calculated';
+  }
+  if(!g('replCost').value){
+    if(_sqftRaw){const _s=Math.max(1,parseFloat(_sqftRaw)),_a=lookupSys(sv('sys'),_s);g('replCost').placeholder='$'+(_a?_a.uc:_sysd.uc).toLocaleString()+' (auto)';}
+    else g('replCost').placeholder='Auto-estimated';
+  }
+  const base=calc(20);
+  const sd=STATE_DATA[sv('state')];
+  const kwhRate=nv('kwh',0)>0?nv('kwh'):(sd?sd.kwh:0.13);
+
+  // Energy savings
+  const kwhSaved=base.energySavePerSite/Math.max(0.01,kwhRate);
+  const co2Tons=kwhSaved*0.000386;
+  g('o-epct').textContent=Math.round(base.energySavePct*100)+'%';
+  g('o-esite').textContent=fmt(base.energySavePerSite)+' / yr';
+  g('o-efleet').textContent=fmt(base.energySaveFleet)+' / yr';
+  g('o-co2').textContent=co2Tons>=1?co2Tons.toFixed(1)+' t CO₂':Math.round(co2Tons*1000)+' kg CO₂';
+
+  // Equipment life
+  g('o-life-react').textContent=Math.round(base.rl)+' yr';
+  g('o-life-pm').textContent=Math.round(base.pl)+' yr';
+  g('o-life-ext').textContent='+'+Math.round(base.pl-base.rl)+' yr';
+
+  // Repair reduction
+  const repairSave=base.eRep-base.residual;
+  const repairPct=base.eRep>0?Math.round(repairSave/base.eRep*100):0;
+  g('o-rpct').textContent=repairPct+'%';
+  g('o-react-repair').textContent=fmt(base.eRep);
+  g('o-pm-repair').textContent=fmt(base.residual);
+  g('o-repair-save').textContent=fmt(repairSave);
+
+  // Downtime
+  g('o-dthrs').textContent=Math.round(base.dtHrsAvoided)+' hrs';
+  g('o-dtfleet').textContent=Math.round(base.dtHrsAvoided*base.locs)+' hrs';
+
+  // Total saved (energy + repairs)
+  const totalSave=base.energySavePerSite+repairSave;
+  const totalPct=base.reactYr>0?Math.round(totalSave/base.reactYr*100):0;
+  g('o-totalpct').textContent=totalPct+'%';
+  g('o-totalsite').textContent=fmt(totalSave);
+  g('o-totalfleet').textContent=fmt(totalSave*base.locs);
+  g('o-totalfleet-sub').textContent=base.locs+' sites';
+
+  updateTimeline(base);
+  HAS_DATA=true;
+  updateTCOView(calc(TCO_YR));
+}
+
+g('age').addEventListener('input',updateUI);
+['vert','sys','tier','climate','state','currentRepair'].forEach(id=>g(id).addEventListener('change',updateUI));
+g('climate').addEventListener('change',()=>g('climateTag').style.display='none');
+['sqft','locs','currentEnergy','kwh','numRTU','replCost'].forEach(id=>g(id).addEventListener('input',updateUI));
+g('calcBtn').addEventListener('click',run);
+
+if(g('dateOut')) g('dateOut').textContent=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+loadConfig();
+</script>
+</body>
+</html>
